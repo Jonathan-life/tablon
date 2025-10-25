@@ -9,7 +9,6 @@ if (!isset($_SESSION["usuario"]) || $_SESSION["tipo"] !== "admin") {
 
 include "db_contable.php";
 
-// Recibir datos
 $id = $_POST['id'] ?? null;
 $periodo_tributario = $_POST['periodo_tributario'] ?? '';
 $formulario = $_POST['formulario'] ?? '';
@@ -26,44 +25,43 @@ $interes_capitalizado = floatval($_POST['interes_capitalizado'] ?? 0);
 $interes_moratorio = floatval($_POST['interes_moratorio'] ?? 0);
 $pagos = floatval($_POST['pagos'] ?? 0);
 $interes_diario = floatval($_POST['interes_diario'] ?? 0);
-$interes_acumulado = floatval($_POST['interes_acumulado'] ?? 0);
 $saldo_total = floatval($_POST['saldo_total'] ?? 0);
 
 try {
     if ($id) {
-        // Actualizar registro existente
+        // Actualizar registro
         $stmt = $conn->prepare("UPDATE deudas SET 
             periodo_tributario=?, formulario=?, numero_orden=?, tributo_multa=?, tipo=?,
             fecha_emision=?, fecha_notificacion=?, fecha_pagos=?, fecha_calculos=?,
             etapa_basica=?, importe_tributaria=?, interes_capitalizado=?, interes_moratorio=?,
-            pagos=?, interes_diario=?, interes_acumulado=?, saldo_total=?
+            pagos=?, interes_diario=?, saldo_total=?
             WHERE id=?");
 
         $stmt->bind_param(
-            "ssssssssssdddddddi",
+            "ssssssssssddddddi",
             $periodo_tributario, $formulario, $numero_orden, $tributo_multa, $tipo,
             $fecha_emision, $fecha_notificacion, $fecha_pagos, $fecha_calculos,
             $etapa_basica, $importe_tributaria, $interes_capitalizado, $interes_moratorio,
-            $pagos, $interes_diario, $interes_acumulado, $saldo_total, $id
+            $pagos, $interes_diario, $saldo_total, $id
         );
 
         $stmt->execute();
         echo json_encode(["status" => "ok", "message" => "Actualización exitosa"]);
     } else {
-        // Insertar nueva fila
+        // Insertar nuevo registro
         $stmt = $conn->prepare("INSERT INTO deudas 
             (periodo_tributario, formulario, numero_orden, tributo_multa, tipo,
             fecha_emision, fecha_notificacion, fecha_pagos, fecha_calculos,
             etapa_basica, importe_tributaria, interes_capitalizado, interes_moratorio,
-            pagos, interes_diario, interes_acumulado, saldo_total)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            pagos, interes_diario, saldo_total)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
         $stmt->bind_param(
-            "ssssssssssddddddd",
+            "ssssssssssdddddd",
             $periodo_tributario, $formulario, $numero_orden, $tributo_multa, $tipo,
             $fecha_emision, $fecha_notificacion, $fecha_pagos, $fecha_calculos,
             $etapa_basica, $importe_tributaria, $interes_capitalizado, $interes_moratorio,
-            $pagos, $interes_diario, $interes_acumulado, $saldo_total
+            $pagos, $interes_diario, $saldo_total
         );
 
         $stmt->execute();
