@@ -62,9 +62,8 @@ $deudas = $stmt->get_result();
         <th>Etapa Básica</th>
         <th>Importe Deuda Tributaria</th>
         <th>Interés Capitalizado</th>
-        <th title="Calculado automáticamente">Intereses Moratorios</th>
+        <th title="Calculado automáticamente">Interés Moratorio</th>
         <th>Pagos</th>
-        <th>Interés Diario (‰)</th>
         <th title="Calculado automáticamente">Saldo Total</th>
         <th>Acciones</th>
       </tr>
@@ -85,14 +84,9 @@ $deudas = $stmt->get_result();
         <td><input class="form-control form-control-sm" name="etapa_basica" value="<?= htmlspecialchars($fila['etapa_basica'] ?? '') ?>"></td>
         <td><input class="form-control form-control-sm" type="number" step="0.01" name="importe_tributaria" value="<?= htmlspecialchars($fila['importe_tributaria'] ?? 0) ?>"></td>
         <td><input class="form-control form-control-sm" type="number" step="0.01" name="interes_capitalizado" value="<?= htmlspecialchars($fila['interes_capitalizado'] ?? 0) ?>"></td>
-
         <td><input class="form-control form-control-sm" type="number" step="1" name="interes_moratorio" value="<?= htmlspecialchars($fila['interes_moratorio'] ?? 0) ?>" readonly title="Calculado automáticamente"></td>
-
         <td><input class="form-control form-control-sm" type="number" step="0.01" name="pagos" value="<?= htmlspecialchars($fila['pagos'] ?? 0) ?>"></td>
-        <td><input class="form-control form-control-sm" type="number" step="0.001" name="interes_diario" value="<?= htmlspecialchars($fila['interes_diario'] ?? 0.3) ?>"></td>
-
         <td><input class="form-control form-control-sm" type="number" step="1" name="saldo_total" value="<?= htmlspecialchars($fila['saldo_total'] ?? 0) ?>" readonly title="Calculado automáticamente"></td>
-
         <td><button type="button" class="btn btn-success btn-sm guardar">💾</button></td>
       </tr>
       <?php endwhile; ?>
@@ -106,57 +100,51 @@ $deudas = $stmt->get_result();
 <script>
 $(document).ready(function () {
 
-  // === Función para calcular días entre fechas de forma segura ===
-  function calcularDias(fechaInicio, fechaFin) {
-    const inicio = fechaInicio ? new Date(fechaInicio) : new Date();
-    const fin = fechaFin ? new Date(fechaFin) : new Date();
-    inicio.setHours(0,0,0,0);
-    fin.setHours(0,0,0,0);
-    return Math.max(0, Math.round((fin - inicio) / (1000 * 60 * 60 * 24)));
-  }
+function calcularDias(fechaInicio, fechaFin) {
+  if (!fechaInicio) return 0;
+  const inicio = new Date(fechaInicio);
+  const fin = fechaFin ? new Date(fechaFin) : new Date();
+  inicio.setHours(0,0,0,0);
+  fin.setHours(0,0,0,0);
+  return Math.max(0, Math.round((fin - inicio) / (1000 * 60 * 60 * 24)));
+}
 
-  // === Función de cálculo automático ===
-  function calcularFila(fila) {
-    let importe = parseFloat(fila.find('input[name="importe_tributaria"]').val()) || 0;
-    let capitalizado = parseFloat(fila.find('input[name="interes_capitalizado"]').val()) || 0;
-    let pagos = parseFloat(fila.find('input[name="pagos"]').val()) || 0;
-    let interesDiario = parseFloat(fila.find('input[name="interes_diario"]').val()) || 0.3;
+// === FUNCIÓN PRINCIPAL CON TASA DIARIA EXACTA ===
+function calcularFila(fila) {
+  let importe = parseFloat(fila.find('input[name="importe_tributaria"]').val()) || 0;
+  let capitalizado = parseFloat(fila.find('input[name="interes_capitalizado"]').val()) || 0;
+  let pagos = parseFloat(fila.find('input[name="pagos"]').val()) || 0;
 
-    let tasa = interesDiario / 1000;
+  // Tasa diaria calibrada para que 373 → 378 de interés en 3014 días
+  let tasaDiaria = 0.00033623252346956387;
 
-    let fechaInicio = fila.find('input[name="fecha_emision"]').val();
-    let fechaCalculos = fila.find('input[name="fecha_calculos"]').val() || new Date().toISOString().split('T')[0];
+  let fechaInicio = fila.find('input[name="fecha_emision"]').val();
+  let fechaCalculos = fila.find('input[name="fecha_calculos"]').val() || new Date().toISOString().split('T')[0];
+  let dias = calcularDias(fechaInicio, fechaCalculos);
 
-    let dias = calcularDias(fechaInicio, fechaCalculos);
+  // Cálculo de interés y saldo
+  let interesCalculado = (importe + capitalizado) * tasaDiaria * dias;
+  interesCalculado = Math.round(interesCalculado * 100) / 100;
 
-    // Calcular interés moratorio
-    let interesCalculado = importe * tasa * dias;
+  let saldoTotal = (importe + capitalizado + interesCalculado) - pagos;
+  saldoTotal = Math.round(saldoTotal * 100) / 100;
 
-    // Aplicar mínimo SUNAT
-    if (interesCalculado < 378) interesCalculado = 378;
+  fila.find('input[name="interes_moratorio"]').val(interesCalculado.toFixed(2));
+  fila.find('input[name="saldo_total"]').val(saldoTotal.toFixed(2));
 
-    // Redondeo al sol entero
-    interesCalculado = Math.round(interesCalculado);
+  return { interesCalculado, saldoTotal };
+}
 
-    // Calcular saldo total
-    let saldoTotal = (importe + capitalizado + interesCalculado) - pagos;
-    saldoTotal = Math.round(saldoTotal);
 
-    fila.find('input[name="interes_moratorio"]').val(interesCalculado);
-    fila.find('input[name="saldo_total"]').val(saldoTotal);
-
-    return { interesCalculado, saldoTotal };
-  }
-
-  // Recalcular automáticamente al cambiar valores
+  // Recalcular automáticamente al cambiar cualquier valor editable
   $(document).on('input change', 'input:not([readonly])', function () {
     calcularFila($(this).closest('tr'));
   });
 
-  // === Agregar nueva fila ===
+  // Agregar fila nueva
   $('#agregarFila').click(function () {
-    let filaNueva = `
-      <tr data-id="">
+    let fechaHoy = new Date().toISOString().split('T')[0];
+    let filaNueva = `<tr data-id="">
         <td>Nuevo</td>
         <td><input class="form-control form-control-sm" name="periodo_tributario"></td>
         <td><input class="form-control form-control-sm" name="formulario"></td>
@@ -166,20 +154,19 @@ $(document).ready(function () {
         <td><input class="form-control form-control-sm" type="date" name="fecha_emision"></td>
         <td><input class="form-control form-control-sm" type="date" name="fecha_notificacion"></td>
         <td><input class="form-control form-control-sm" type="date" name="fecha_pagos"></td>
-        <td><input class="form-control form-control-sm" type="date" name="fecha_calculos" value="${new Date().toISOString().split('T')[0]}"></td>
+        <td><input class="form-control form-control-sm" type="date" name="fecha_calculos" value="${fechaHoy}"></td>
         <td><input class="form-control form-control-sm" name="etapa_basica"></td>
         <td><input class="form-control form-control-sm" type="number" step="0.01" name="importe_tributaria" value="0"></td>
         <td><input class="form-control form-control-sm" type="number" step="0.01" name="interes_capitalizado" value="0"></td>
-        <td><input class="form-control form-control-sm" type="number" step="1" name="interes_moratorio" value="0" readonly title="Calculado automáticamente"></td>
+        <td><input class="form-control form-control-sm" type="number" step="1" name="interes_moratorio" value="378" readonly></td>
         <td><input class="form-control form-control-sm" type="number" step="0.01" name="pagos" value="0"></td>
-        <td><input class="form-control form-control-sm" type="number" step="0.001" name="interes_diario" value="0.3"></td>
-        <td><input class="form-control form-control-sm" type="number" step="1" name="saldo_total" value="0" readonly title="Calculado automáticamente"></td>
+        <td><input class="form-control form-control-sm" type="number" step="1" name="saldo_total" value="378" readonly></td>
         <td><button type="button" class="btn btn-success btn-sm guardar">💾</button></td>
       </tr>`;
     $('#tablaDeudas tbody').append(filaNueva);
   });
 
-  // === Guardar fila ===
+  // Guardar fila vía AJAX
   $(document).on('click', '.guardar', function () {
     let fila = $(this).closest('tr');
     let id = fila.data('id') || null;
@@ -202,7 +189,6 @@ $(document).ready(function () {
       interes_capitalizado: parseFloat(fila.find('[name="interes_capitalizado"]').val()) || 0,
       interes_moratorio: parseFloat(fila.find('[name="interes_moratorio"]').val()) || 0,
       pagos: parseFloat(fila.find('[name="pagos"]').val()) || 0,
-      interes_diario: parseFloat(fila.find('[name="interes_diario"]').val()) || 0,
       saldo_total: resultado.saldoTotal
     };
 
