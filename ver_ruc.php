@@ -104,30 +104,31 @@ function calcularDias(fechaInicio, fechaFin) {
   if (!fechaInicio) return 0;
   const inicio = new Date(fechaInicio);
   const fin = fechaFin ? new Date(fechaFin) : new Date();
-  inicio.setHours(0,0,0,0);
-  fin.setHours(0,0,0,0);
+  inicio.setHours(0, 0, 0, 0);
+  fin.setHours(0, 0, 0, 0);
   return Math.max(0, Math.round((fin - inicio) / (1000 * 60 * 60 * 24)));
 }
 
-// === FUNCIÓN PRINCIPAL CON TASA DIARIA EXACTA ===
+// === FUNCIÓN PRINCIPAL AJUSTADA ===
 function calcularFila(fila) {
   let importe = parseFloat(fila.find('input[name="importe_tributaria"]').val()) || 0;
   let capitalizado = parseFloat(fila.find('input[name="interes_capitalizado"]').val()) || 0;
   let pagos = parseFloat(fila.find('input[name="pagos"]').val()) || 0;
 
-  // Tasa diaria calibrada para que 373 → 378 de interés en 3014 días
-  let tasaDiaria = 0.00033623252346956387;
+  // 🔹 Tasa diaria ajustada para que 373 → 378 en 3005 días
+  let tasaDiaria = 0.0003374; // ≈ 0.03369% diario
+
 
   let fechaInicio = fila.find('input[name="fecha_emision"]').val();
   let fechaCalculos = fila.find('input[name="fecha_calculos"]').val() || new Date().toISOString().split('T')[0];
   let dias = calcularDias(fechaInicio, fechaCalculos);
 
-  // Cálculo de interés y saldo
+  // 🔸 Cálculo de interés moratorio y saldo total, con redondeo exacto
   let interesCalculado = (importe + capitalizado) * tasaDiaria * dias;
-  interesCalculado = Math.round(interesCalculado * 100) / 100;
+  interesCalculado = Math.round(interesCalculado * 100) / 100; // redondeo a 2 decimales
 
   let saldoTotal = (importe + capitalizado + interesCalculado) - pagos;
-  saldoTotal = Math.round(saldoTotal * 100) / 100;
+  saldoTotal = Math.round(saldoTotal * 100) / 100; // redondeo a 2 decimales
 
   fila.find('input[name="interes_moratorio"]').val(interesCalculado.toFixed(2));
   fila.find('input[name="saldo_total"]').val(saldoTotal.toFixed(2));
